@@ -7,13 +7,11 @@ export default function App() {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
-    // ─── Estado global mutable ───────────────────────────────
     let W, H, stars, shootingStars, sunflowers, originX, originY;
     let moonX, moonY, moonR;
     let frame = 0;
     let animId;
 
-    // ─── PIXEL RATIO (pantallas Retina / móvil nítido) ───────
     const DPR = Math.min(window.devicePixelRatio || 1, 2);
 
     function setSize() {
@@ -26,349 +24,432 @@ export default function App() {
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     }
 
-    // ─── Helpers ────────────────────────────────────────────
     function easeOutElastic(t) {
       if (t === 0 || t === 1) return t;
-      const p = 0.4;
+      const p = 0.45;
       return Math.pow(2, -10 * t) * Math.sin(((t - p / 4) * (2 * Math.PI)) / p) + 1;
     }
 
-    // ─── ESTRELLA FUGAZ ──────────────────────────────────────
+    function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+
+    // ── ESTRELLA FUGAZ ─────────────────────────────────────
     class ShootingStar {
       constructor() { this.reset(true); }
       reset(init = false) {
-        this.x = Math.random() * W * 1.2 - W * 0.1;
-        this.y = Math.random() * H * 0.4;
-        this.speed = Math.random() * 14 + 8;
-        this.angle = (Math.random() * 25 + 20) * (Math.PI / 180);
+        this.x = Math.random() * W * 0.8;
+        this.y = Math.random() * H * 0.35;
+        this.speed = Math.random() * 12 + 7;
+        this.angle = (Math.random() * 20 + 15) * (Math.PI / 180);
         this.alpha = 0;
         this.life = 0;
-        this.maxLife = Math.random() * 60 + 40;
-        this.delay = init ? Math.random() * 200 : Math.random() * 300 + 60;
+        this.maxLife = Math.random() * 55 + 35;
+        this.delay = init ? Math.random() * 220 : Math.random() * 280 + 80;
         this.waiting = true;
         this.tail = [];
+        this.width = Math.random() * 1.5 + 1;
       }
       update() {
         if (this.waiting) { this.delay--; if (this.delay <= 0) this.waiting = false; return; }
         this.life++;
         const p = this.life / this.maxLife;
-        this.alpha = p < 0.2 ? p / 0.2 : p > 0.7 ? 1 - (p - 0.7) / 0.3 : 1;
-        this.tail.unshift({ x: this.x, y: this.y, alpha: this.alpha });
-        if (this.tail.length > 22) this.tail.pop();
+        this.alpha = p < 0.15 ? p / 0.15 : p > 0.65 ? 1 - (p - 0.65) / 0.35 : 1;
+        this.tail.unshift({ x: this.x, y: this.y });
+        if (this.tail.length > 28) this.tail.pop();
         this.x += Math.cos(this.angle) * this.speed;
         this.y += Math.sin(this.angle) * this.speed;
-        if (this.life >= this.maxLife || this.x > W + 100 || this.y > H) this.reset();
+        if (this.life >= this.maxLife || this.x > W + 150) this.reset();
       }
       draw() {
-        if (this.waiting || this.alpha <= 0) return;
-        for (let i = 0; i < this.tail.length; i++) {
-          const t = this.tail[i];
-          const fade = (1 - i / this.tail.length) * t.alpha;
+        if (this.waiting || this.alpha <= 0 || this.tail.length < 2) return;
+        // Cola con gradiente
+        for (let i = 1; i < this.tail.length; i++) {
+          const t0 = this.tail[i - 1];
+          const t1 = this.tail[i];
+          const fade = (1 - i / this.tail.length) * this.alpha;
+          const w = (1 - i / this.tail.length) * this.width * 2;
           ctx.beginPath();
-          ctx.arc(t.x, t.y, (1 - i / this.tail.length) * 1.1, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(255,255,240,${fade * 0.6})`;
-          ctx.fill();
-        }
-        if (this.tail.length > 1) {
-          const last = this.tail[Math.min(this.tail.length - 1, 18)];
-          const grad = ctx.createLinearGradient(last.x, last.y, this.x, this.y);
-          grad.addColorStop(0, "rgba(255,255,240,0)");
-          grad.addColorStop(1, `rgba(255,255,240,${this.alpha * 0.9})`);
-          ctx.beginPath();
-          ctx.moveTo(last.x, last.y);
-          ctx.lineTo(this.x, this.y);
-          ctx.strokeStyle = grad;
-          ctx.lineWidth = 1.5;
+          ctx.moveTo(t0.x, t0.y);
+          ctx.lineTo(t1.x, t1.y);
+          ctx.strokeStyle = `rgba(220,240,255,${fade * 0.85})`;
+          ctx.lineWidth = w;
+          ctx.lineCap = "round";
           ctx.stroke();
         }
-        const glow = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, 6);
-        glow.addColorStop(0, `rgba(255,255,230,${this.alpha})`);
-        glow.addColorStop(1, "rgba(255,255,230,0)");
+        // Cabeza brillante
+        const gHead = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, 8);
+        gHead.addColorStop(0, `rgba(255,255,255,${this.alpha})`);
+        gHead.addColorStop(0.4, `rgba(200,230,255,${this.alpha * 0.6})`);
+        gHead.addColorStop(1, "rgba(200,230,255,0)");
         ctx.beginPath();
-        ctx.arc(this.x, this.y, 6, 0, Math.PI * 2);
-        ctx.fillStyle = glow;
+        ctx.arc(this.x, this.y, 8, 0, Math.PI * 2);
+        ctx.fillStyle = gHead;
         ctx.fill();
       }
     }
 
-    // ─── INIT: recalcula todo en cada resize ─────────────────
+    // ── INIT ───────────────────────────────────────────────
     function init() {
       setSize();
-      const isMobile = W < 600;
+      const isMobile = W < 700;
 
-      moonX = W * 0.82;
-      moonY = H * 0.14;
-      moonR = Math.min(W, H) * 0.055;
+      moonX = W * 0.78;
+      moonY = H * 0.13;
+      moonR = Math.min(W, H) * (isMobile ? 0.07 : 0.055);
 
       // Estrellas
-      const numStars = isMobile ? 160 : 280;
+      const numStars = isMobile ? 180 : 300;
       stars = Array.from({ length: numStars }, () => ({
         x: Math.random() * W,
-        y: Math.random() * H * 0.85,
-        r: Math.random() * 1.4 + 0.2,
-        speed: Math.random() * 0.008 + 0.002,
+        y: Math.random() * H * 0.88,
+        r: Math.random() * 1.6 + 0.15,
+        speed: Math.random() * 0.007 + 0.002,
         phase: Math.random() * Math.PI * 2,
-        color: ["#ffffff","#ffe8a0","#a8d8ff","#ffd6ff"][Math.floor(Math.random()*4)],
+        // Mayoría blancas, pocas de color
+        color: Math.random() < 0.7
+          ? "#ffffff"
+          : ["#ffe8a0","#a8d8ff","#ffd0ff","#c0f0ff"][Math.floor(Math.random()*4)],
       }));
 
-      shootingStars = Array.from({ length: isMobile ? 3 : 5 }, () => new ShootingStar());
+      shootingStars = Array.from({ length: isMobile ? 4 : 6 }, () => new ShootingStar());
 
-      // Girasoles
+      // ── GIRASOLES centrados en abanico ─────────────────
       const numFlowers = isMobile ? 5 : 7;
-      originX = W / 2;
-      originY = H + H * 0.02;
+      originX = W * 0.5;
+      originY = H * 1.01;
 
-      const fanAngle = isMobile ? Math.PI * 0.52 : Math.PI * 0.65;
-      // En móvil los tallos deben ser más cortos para que las flores no salgan de pantalla
-      const stemScale = isMobile ? Math.min(W, H) * 0.58 : Math.min(W, H) * 0.55;
+      // Abanico simétrico: de izquierda a derecha
+      // Ángulo central = -90° (directo arriba), se abre ±fanSpread
+      const fanSpread = isMobile ? 0.72 : 0.82; // radianes a cada lado
+      const baseSize = Math.min(W, H);
 
       sunflowers = Array.from({ length: numFlowers }, (_, i) => {
-        const spread = numFlowers - 1;
-        const t = i / spread; // 0..1
-        const angle = -fanAngle + t * fanAngle * (isMobile ? 1.25 : 1.4);
-        const stemLen = stemScale
-          * (0.78 + Math.sin(Math.PI * t * (1-t) * 4) * 0.28 + Math.random() * 0.08);
-        const headSize = Math.min(W, H) * (isMobile ? 0.085 : 0.07)
-          * (1 + Math.sin(Math.PI * t * (1-t) * 4) * 0.3);
+        const t = numFlowers === 1 ? 0.5 : i / (numFlowers - 1); // 0..1
+        // -PI/2 es recto hacia arriba; extendemos ±fanSpread
+        const angle = -Math.PI / 2 - fanSpread + t * fanSpread * 2;
+
+        // Flores del centro más altas, las de los lados un poco más cortas
+        const centerBonus = Math.sin(Math.PI * t) * 0.18; // máx en t=0.5
+        const stemLen = baseSize * (isMobile ? 0.55 : 0.52) * (0.82 + centerBonus + Math.random() * 0.06);
+
+        // Flores del centro más grandes
+        const headSize = baseSize * (isMobile ? 0.082 : 0.068) * (0.85 + centerBonus * 1.2);
+
         return {
           angle,
           stemLen,
           headSize,
-          petalCount: 16 + Math.floor(Math.random() * 4),
-          sway: (Math.random() - 0.5) * 0.04,
-          swaySpeed: 0.4 + Math.random() * 0.3,
+          petalCount: 22 + Math.floor(Math.random() * 4), // más pétalos = más bonito
+          sway: (Math.random() - 0.5) * 0.035,
+          swaySpeed: 0.35 + Math.random() * 0.25,
           swayPhase: Math.random() * Math.PI * 2,
           leafSide: i % 2 === 0 ? 1 : -1,
-          leafPos: 0.35 + Math.random() * 0.2,
-          delay: i * 18 + 30,
+          leafPos: 0.38 + Math.random() * 0.18,
+          leafPos2: 0.6 + Math.random() * 0.12,
+          delay: i * 22 + 20,
           progress: 0,
-          growSpeed: 0.008 + Math.random() * 0.004,
+          growSpeed: 0.007 + Math.random() * 0.004,
         };
       });
     }
 
-    // ─── DIBUJOS ─────────────────────────────────────────────
+    // ── CIELO ──────────────────────────────────────────────
     function drawSky() {
       const sky = ctx.createLinearGradient(0, 0, 0, H);
-      sky.addColorStop(0, "#010308");
-      sky.addColorStop(0.3, "#020818");
-      sky.addColorStop(0.7, "#060b20");
-      sky.addColorStop(1, "#0d1a0a");
+      sky.addColorStop(0,   "#01040f");
+      sky.addColorStop(0.25,"#020c22");
+      sky.addColorStop(0.6, "#041228");
+      sky.addColorStop(0.85,"#061a18");
+      sky.addColorStop(1,   "#081f0c");
       ctx.fillStyle = sky;
       ctx.fillRect(0, 0, W, H);
     }
 
+    // Nebulosidad sutil
     function drawNebula() {
-      const clouds = [
-        { x: W*0.15, y: H*0.2,  rx: W*0.25, ry: H*0.12, color:"rgba(80,40,120,0.07)" },
-        { x: W*0.7,  y: H*0.35, rx: W*0.2,  ry: H*0.1,  color:"rgba(40,80,140,0.06)" },
-        { x: W*0.45, y: H*0.1,  rx: W*0.35, ry: H*0.08, color:"rgba(100,50,80,0.05)" },
+      const patches = [
+        { x: W*0.1,  y: H*0.15, rx: W*0.3,  ry: H*0.14, c: "rgba(60,30,110,0.055)" },
+        { x: W*0.65, y: H*0.3,  rx: W*0.22, ry: H*0.1,  c: "rgba(20,60,130,0.05)"  },
+        { x: W*0.4,  y: H*0.08, rx: W*0.4,  ry: H*0.07, c: "rgba(80,30,60,0.045)"  },
+        { x: W*0.85, y: H*0.5,  rx: W*0.18, ry: H*0.12, c: "rgba(20,40,100,0.04)"  },
       ];
-      clouds.forEach(c => {
-        const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, Math.max(c.rx, c.ry));
-        g.addColorStop(0, c.color);
+      patches.forEach(p => {
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, Math.max(p.rx, p.ry));
+        g.addColorStop(0, p.c);
         g.addColorStop(1, "rgba(0,0,0,0)");
         ctx.save();
-        ctx.scale(1, c.ry / c.rx);
+        ctx.scale(1, p.ry / p.rx);
         ctx.beginPath();
-        ctx.arc(c.x, c.y * (c.rx / c.ry), c.rx, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y * (p.rx / p.ry), p.rx, 0, Math.PI * 2);
         ctx.fillStyle = g;
         ctx.fill();
         ctx.restore();
       });
     }
 
+    // ── LUNA ───────────────────────────────────────────────
     function drawMoon() {
-      const halo = ctx.createRadialGradient(moonX, moonY, moonR, moonX, moonY, moonR * 3.5);
-      halo.addColorStop(0, "rgba(255,245,200,0.12)");
-      halo.addColorStop(1, "rgba(255,245,200,0)");
+      // Halo exterior difuso
+      const outerHalo = ctx.createRadialGradient(moonX, moonY, moonR*0.8, moonX, moonY, moonR*5);
+      outerHalo.addColorStop(0,   "rgba(255,250,200,0.09)");
+      outerHalo.addColorStop(0.4, "rgba(255,245,180,0.04)");
+      outerHalo.addColorStop(1,   "rgba(255,245,180,0)");
       ctx.beginPath();
-      ctx.arc(moonX, moonY, moonR * 3.5, 0, Math.PI * 2);
-      ctx.fillStyle = halo;
+      ctx.arc(moonX, moonY, moonR*5, 0, Math.PI*2);
+      ctx.fillStyle = outerHalo;
       ctx.fill();
 
-      const mg = ctx.createRadialGradient(moonX - moonR*0.3, moonY - moonR*0.3, moonR*0.1, moonX, moonY, moonR);
-      mg.addColorStop(0, "#fffde0");
-      mg.addColorStop(0.6, "#fef3a0");
-      mg.addColorStop(1, "#e8d060");
+      // Cuerpo luna
+      const mg = ctx.createRadialGradient(
+        moonX - moonR*0.28, moonY - moonR*0.28, moonR*0.05,
+        moonX, moonY, moonR
+      );
+      mg.addColorStop(0,   "#fffff0");
+      mg.addColorStop(0.35,"#fefce0");
+      mg.addColorStop(0.75,"#f0e070");
+      mg.addColorStop(1,   "#d4c040");
       ctx.beginPath();
-      ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+      ctx.arc(moonX, moonY, moonR, 0, Math.PI*2);
       ctx.fillStyle = mg;
       ctx.fill();
 
+      // Sombra de cráter sutil
       ctx.save();
       ctx.beginPath();
-      ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+      ctx.arc(moonX, moonY, moonR, 0, Math.PI*2);
       ctx.clip();
-      const shadow = ctx.createRadialGradient(moonX + moonR*0.5, moonY, moonR*0.2, moonX + moonR*0.7, moonY, moonR);
-      shadow.addColorStop(0, "rgba(20,15,50,0.55)");
-      shadow.addColorStop(1, "rgba(20,15,50,0)");
+      const sh = ctx.createRadialGradient(moonX+moonR*0.45, moonY+moonR*0.1, 0, moonX+moonR*0.6, moonY, moonR*1.1);
+      sh.addColorStop(0, "rgba(10,8,30,0.48)");
+      sh.addColorStop(1, "rgba(10,8,30,0)");
       ctx.beginPath();
-      ctx.arc(moonX + moonR*0.5, moonY, moonR*1.1, 0, Math.PI*2);
-      ctx.fillStyle = shadow;
+      ctx.arc(moonX+moonR*0.5, moonY, moonR*1.1, 0, Math.PI*2);
+      ctx.fillStyle = sh;
+      ctx.fill();
+      // Brillo especular pequeño
+      const spec = ctx.createRadialGradient(moonX-moonR*0.3, moonY-moonR*0.3, 0, moonX-moonR*0.2, moonY-moonR*0.2, moonR*0.3);
+      spec.addColorStop(0, "rgba(255,255,240,0.45)");
+      spec.addColorStop(1, "rgba(255,255,240,0)");
+      ctx.beginPath();
+      ctx.arc(moonX-moonR*0.2, moonY-moonR*0.2, moonR*0.3, 0, Math.PI*2);
+      ctx.fillStyle = spec;
       ctx.fill();
       ctx.restore();
     }
 
+    // ── SUELO ──────────────────────────────────────────────
     function drawGround() {
-      const g = ctx.createLinearGradient(0, H*0.88, 0, H);
-      g.addColorStop(0, "rgba(15,40,10,0)");
-      g.addColorStop(0.3, "rgba(10,30,8,0.7)");
-      g.addColorStop(1, "rgba(5,15,4,1)");
+      // Degradado tierra
+      const g = ctx.createLinearGradient(0, H*0.86, 0, H);
+      g.addColorStop(0,   "rgba(8,25,6,0)");
+      g.addColorStop(0.25,"rgba(6,20,4,0.75)");
+      g.addColorStop(1,   "rgba(3,10,2,1)");
       ctx.fillStyle = g;
-      ctx.fillRect(0, H*0.88, W, H*0.12);
+      ctx.fillRect(0, H*0.86, W, H*0.14);
 
-      ctx.fillStyle = "#0a1f07";
-      const blades = Math.floor(W / 10);
+      // Silueta hierba
+      ctx.fillStyle = "#071a05";
+      const blades = Math.floor(W / 8);
       for (let i = 0; i < blades; i++) {
-        const bx = (i / blades) * W + Math.random() * (W / blades);
+        const bx = (i / blades) * W + (Math.random() - 0.5) * (W / blades) * 1.5;
+        const bh = 10 + Math.random() * 22;
+        const bw = 4 + Math.random() * 9;
         ctx.beginPath();
-        ctx.ellipse(bx, H, 5 + Math.random()*10, 8 + Math.random()*18, 0, 0, Math.PI);
+        ctx.ellipse(bx, H, bw, bh, (Math.random()-0.5)*0.3, 0, Math.PI);
         ctx.fill();
       }
     }
 
+    // ── GIRASOL ────────────────────────────────────────────
     function drawSunflower(sf, time) {
       if (sf.progress <= 0) return;
       const p = sf.progress;
-      const sway = p > 0.7
-        ? sf.sway * Math.sin(time * sf.swaySpeed + sf.swayPhase) * ((p - 0.7) / 0.3)
+      const sway = p > 0.65
+        ? sf.sway * Math.sin(time * sf.swaySpeed + sf.swayPhase) * Math.min(1, (p-0.65)/0.35)
         : 0;
-      const totalAngle = sf.angle + sway;
-      const stemP = Math.min(1, p * 1.6);
-      const leafP  = Math.max(0, p * 2 - 0.5);
-      const headP  = Math.max(0, p * 1.8 - 0.8);
+      const ang = sf.angle + sway;
 
-      const tipX = originX + Math.cos(totalAngle) * sf.stemLen * stemP;
-      const tipY = originY + Math.sin(totalAngle) * sf.stemLen * stemP;
-      const ctrlX = originX + Math.cos(totalAngle) * sf.stemLen * 0.5 * stemP + Math.cos(totalAngle + Math.PI/2) * sf.stemLen * 0.08;
-      const ctrlY = originY + Math.sin(totalAngle) * sf.stemLen * 0.5 * stemP + Math.sin(totalAngle + Math.PI/2) * sf.stemLen * 0.08;
+      const stemP = Math.min(1, p * 1.5);
+      const leafP  = Math.max(0, p * 2.2 - 0.6);
+      const headP  = Math.max(0, p * 2.0 - 1.0);
 
-      // Tallo
+      // Punta del tallo
+      const tipX = originX + Math.cos(ang) * sf.stemLen * stemP;
+      const tipY = originY + Math.sin(ang) * sf.stemLen * stemP;
+
+      // Control de curvatura (leve S)
+      const bendX = originX + Math.cos(ang + Math.PI/2) * sf.stemLen * 0.06;
+      const bendY = originY + Math.sin(ang + Math.PI/2) * sf.stemLen * 0.06;
+      const ctrlX = bendX + Math.cos(ang) * sf.stemLen * 0.5 * stemP;
+      const ctrlY = bendY + Math.sin(ang) * sf.stemLen * 0.5 * stemP;
+
+      // ─ Tallo ─
       const sg = ctx.createLinearGradient(originX, originY, tipX, tipY);
-      sg.addColorStop(0, "#2d5a1b");
-      sg.addColorStop(0.5, "#3d7a24");
-      sg.addColorStop(1, "#4a8f2a");
+      sg.addColorStop(0,   "#1e4010");
+      sg.addColorStop(0.4, "#2e6018");
+      sg.addColorStop(1,   "#3a7820");
+      const stemW = 2.8 + sf.headSize * 0.04;
+      // Sombra del tallo
+      ctx.beginPath();
+      ctx.moveTo(originX+1.5, originY);
+      ctx.quadraticCurveTo(ctrlX+1.5, ctrlY, tipX+1.5, tipY);
+      ctx.strokeStyle = "rgba(0,0,0,0.25)";
+      ctx.lineWidth = stemW + 1;
+      ctx.lineCap = "round";
+      ctx.stroke();
+      // Tallo principal
       ctx.beginPath();
       ctx.moveTo(originX, originY);
       ctx.quadraticCurveTo(ctrlX, ctrlY, tipX, tipY);
       ctx.strokeStyle = sg;
-      ctx.lineWidth = 3 + sf.headSize * 0.05;
-      ctx.lineCap = "round";
+      ctx.lineWidth = stemW;
       ctx.stroke();
 
-      // Hoja
-      if (leafP > 0) {
-        const lp = Math.min(1, leafP);
-        const lx = originX + Math.cos(totalAngle) * sf.stemLen * sf.leafPos * stemP;
-        const ly = originY + Math.sin(totalAngle) * sf.stemLen * sf.leafPos * stemP;
-        const perpAngle = totalAngle + Math.PI / 2;
-        const leafLen = sf.stemLen * 0.22 * lp * sf.leafSide;
-        const ltx = lx + Math.cos(perpAngle) * leafLen;
-        const lty = ly + Math.sin(perpAngle) * leafLen;
+      // ─ Hojas (2 por planta) ─
+      const drawLeaf = (posT, side, scale = 1) => {
+        const lp = Math.min(1, Math.max(0, leafP));
+        if (lp <= 0) return;
+        const lx = originX + Math.cos(ang) * sf.stemLen * posT * stemP + Math.cos(ang + Math.PI/2) * sf.stemLen * 0.06 * posT;
+        const ly = originY + Math.sin(ang) * sf.stemLen * posT * stemP + Math.sin(ang + Math.PI/2) * sf.stemLen * 0.06 * posT;
+        const perpA = ang + Math.PI/2;
+        const lLen = sf.stemLen * 0.2 * lp * side * scale;
+        const ltx = lx + Math.cos(perpA) * lLen;
+        const lty = ly + Math.sin(perpA) * lLen;
         ctx.beginPath();
         ctx.moveTo(lx, ly);
         ctx.bezierCurveTo(
-          lx + Math.cos(perpAngle-0.5)*leafLen*0.7, ly + Math.sin(perpAngle-0.5)*leafLen*0.7,
-          ltx + Math.cos(totalAngle)*leafLen*0.1, lty + Math.sin(totalAngle)*leafLen*0.1,
+          lx + Math.cos(perpA-0.6)*lLen*0.65, ly + Math.sin(perpA-0.6)*lLen*0.65,
+          ltx + Math.cos(ang)*lLen*0.12, lty + Math.sin(ang)*lLen*0.12,
           ltx, lty
         );
         ctx.bezierCurveTo(
-          ltx + Math.cos(perpAngle+0.5)*leafLen*0.3, lty + Math.sin(perpAngle+0.5)*leafLen*0.3,
-          lx + Math.cos(perpAngle+0.6)*leafLen*0.3, ly + Math.sin(perpAngle+0.6)*leafLen*0.3,
+          ltx + Math.cos(perpA+0.6)*lLen*0.3, lty + Math.sin(perpA+0.6)*lLen*0.3,
+          lx + Math.cos(perpA+0.7)*lLen*0.25, ly + Math.sin(perpA+0.7)*lLen*0.25,
           lx, ly
         );
-        ctx.fillStyle = `rgba(45,110,30,${0.85 * lp})`;
+        ctx.fillStyle = `rgba(38,95,22,${0.88 * lp})`;
         ctx.fill();
+        // Nervio central
         ctx.beginPath();
         ctx.moveTo(lx, ly);
         ctx.lineTo(ltx, lty);
-        ctx.strokeStyle = `rgba(55,130,35,${0.5 * lp})`;
-        ctx.lineWidth = 0.8;
+        ctx.strokeStyle = `rgba(50,115,28,${0.55 * lp})`;
+        ctx.lineWidth = 0.9;
         ctx.stroke();
-      }
+      };
+      drawLeaf(sf.leafPos,  sf.leafSide,  1);
+      drawLeaf(sf.leafPos2, -sf.leafSide, 0.75);
 
-      // Cabeza
+      // ─ Cabeza / Flor ─
       if (headP > 0) {
-        const r = sf.headSize * easeOutElastic(Math.min(1, headP));
+        const hp = easeOutElastic(Math.min(1, headP));
+        const r  = sf.headSize * hp;
 
-        for (let layer = 0; layer < 2; layer++) {
+        // Sombra bajo la flor
+        const dropShadow = ctx.createRadialGradient(tipX+r*0.08, tipY+r*0.1, 0, tipX+r*0.08, tipY+r*0.1, r*1.4);
+        dropShadow.addColorStop(0, "rgba(0,0,0,0.22)");
+        dropShadow.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.beginPath();
+        ctx.arc(tipX+r*0.08, tipY+r*0.1, r*1.4, 0, Math.PI*2);
+        ctx.fillStyle = dropShadow;
+        ctx.fill();
+
+        // Pétalos — 3 capas para aspecto más rico
+        for (let layer = 0; layer < 3; layer++) {
+          const layerOffset = (layer / 3) * (Math.PI / sf.petalCount);
+          const layerScale  = [1.0, 0.88, 0.74][layer];
+          const layerAlpha  = [0.96, 0.85, 0.70][layer];
+          const innerColor  = ["#c87800","#b06000","#985000"][layer];
+          const outerColor  = ["#ffd020","#f0b800","#dda000"][layer];
+
           for (let i = 0; i < sf.petalCount; i++) {
-            const pa = (Math.PI*2/sf.petalCount)*i + (layer*Math.PI/sf.petalCount);
-            const pLen = r * (layer === 0 ? 1.0 : 0.85);
-            const pW = r * 0.32;
-            const px1 = tipX + Math.cos(pa)*r*0.35;
-            const py1 = tipY + Math.sin(pa)*r*0.35;
-            const pTipX = tipX + Math.cos(pa)*(r*0.35+pLen);
-            const pTipY = tipY + Math.sin(pa)*(r*0.35+pLen);
-            const c1x = px1 + Math.cos(pa-0.45)*pLen*0.55 + Math.cos(pa+Math.PI/2)*pW;
-            const c1y = py1 + Math.sin(pa-0.45)*pLen*0.55 + Math.sin(pa+Math.PI/2)*pW;
-            const c2x = px1 + Math.cos(pa+0.45)*pLen*0.55 - Math.cos(pa+Math.PI/2)*pW;
-            const c2y = py1 + Math.sin(pa+0.45)*pLen*0.55 - Math.sin(pa+Math.PI/2)*pW;
+            const pa   = (Math.PI*2 / sf.petalCount) * i + layerOffset;
+            const pLen = r * layerScale * 0.95;
+            const pW   = r * 0.18; // más delgados = más elegante
+
+            const px1  = tipX + Math.cos(pa) * r * 0.32;
+            const py1  = tipY + Math.sin(pa) * r * 0.32;
+            const pTipX = tipX + Math.cos(pa) * (r*0.32 + pLen);
+            const pTipY = tipY + Math.sin(pa) * (r*0.32 + pLen);
+
+            // Pétalo más redondeado con 2 curvas bezier
+            const perpA = pa + Math.PI/2;
+            const c1x = px1 + Math.cos(pa)*pLen*0.35 + Math.cos(perpA)*pW;
+            const c1y = py1 + Math.sin(pa)*pLen*0.35 + Math.sin(perpA)*pW;
+            const c2x = pTipX - Math.cos(pa)*pLen*0.2 + Math.cos(perpA)*pW*0.3;
+            const c2y = pTipY - Math.sin(pa)*pLen*0.2 + Math.sin(perpA)*pW*0.3;
+            const c3x = pTipX - Math.cos(pa)*pLen*0.2 - Math.cos(perpA)*pW*0.3;
+            const c3y = pTipY - Math.sin(pa)*pLen*0.2 - Math.sin(perpA)*pW*0.3;
+            const c4x = px1 + Math.cos(pa)*pLen*0.35 - Math.cos(perpA)*pW;
+            const c4y = py1 + Math.sin(pa)*pLen*0.35 - Math.sin(perpA)*pW;
+
             const pg = ctx.createLinearGradient(px1, py1, pTipX, pTipY);
-            if (layer === 0) {
-              pg.addColorStop(0, "#e8a000");
-              pg.addColorStop(0.5, "#f5c000");
-              pg.addColorStop(1, "#ffd630");
-            } else {
-              pg.addColorStop(0, "#c87800");
-              pg.addColorStop(1, "#e8a800");
-            }
+            pg.addColorStop(0,   innerColor);
+            pg.addColorStop(0.4, outerColor);
+            pg.addColorStop(1,   outerColor + "cc");
+
             ctx.beginPath();
             ctx.moveTo(px1, py1);
-            ctx.bezierCurveTo(c1x, c1y, pTipX, pTipY, pTipX, pTipY);
-            ctx.bezierCurveTo(pTipX, pTipY, c2x, c2y, px1, py1);
+            ctx.bezierCurveTo(c1x, c1y, c2x, c2y, pTipX, pTipY);
+            ctx.bezierCurveTo(c3x, c3y, c4x, c4y, px1, py1);
             ctx.closePath();
             ctx.fillStyle = pg;
-            ctx.globalAlpha = layer === 0 ? 0.95 : 0.8;
+            ctx.globalAlpha = layerAlpha;
             ctx.fill();
+            // Contorno muy sutil
+            ctx.strokeStyle = "rgba(140,70,0,0.12)";
+            ctx.lineWidth = 0.4;
+            ctx.stroke();
           }
         }
         ctx.globalAlpha = 1;
 
-        // Disco
-        const dg = ctx.createRadialGradient(tipX-r*0.1, tipY-r*0.1, 0, tipX, tipY, r*0.38);
-        dg.addColorStop(0, "#4a2800");
-        dg.addColorStop(0.5, "#3a1f00");
-        dg.addColorStop(1, "#2a1400");
+        // Disco central marrón
+        const dg = ctx.createRadialGradient(tipX-r*0.08, tipY-r*0.08, 0, tipX, tipY, r*0.40);
+        dg.addColorStop(0,   "#5a3000");
+        dg.addColorStop(0.5, "#3e2000");
+        dg.addColorStop(1,   "#2a1400");
         ctx.beginPath();
-        ctx.arc(tipX, tipY, r*0.38, 0, Math.PI*2);
+        ctx.arc(tipX, tipY, r*0.40, 0, Math.PI*2);
         ctx.fillStyle = dg;
         ctx.fill();
 
-        // Semillas
-        for (let sl = 0; sl < 4; sl++) {
-          const sdist = (sl/4)*r*0.36;
-          const scount = Math.max(1, Math.round(6+sl*5));
-          for (let si = 0; si < scount; si++) {
-            const sa = (Math.PI*2/scount)*si + sl*0.5;
-            ctx.beginPath();
-            ctx.arc(tipX+Math.cos(sa)*sdist, tipY+Math.sin(sa)*sdist, r*0.028, 0, Math.PI*2);
-            ctx.fillStyle = "rgba(90,50,10,0.6)";
-            ctx.fill();
-          }
+        // Patrón de semillas en espiral de Fibonacci
+        const diskR = r * 0.37;
+        const phi = 2.399963; // ángulo dorado
+        const numSeeds = 38;
+        for (let s = 0; s < numSeeds; s++) {
+          const sAngle = s * phi;
+          const sR = Math.sqrt(s / numSeeds) * diskR;
+          const sx = tipX + Math.cos(sAngle) * sR;
+          const sy = tipY + Math.sin(sAngle) * sR;
+          const sr = r * 0.025 * (1 - s/numSeeds * 0.3);
+          ctx.beginPath();
+          ctx.arc(sx, sy, sr, 0, Math.PI*2);
+          ctx.fillStyle = `rgba(100,55,10,0.7)`;
+          ctx.fill();
         }
 
-        // Shine + glow
-        const shine = ctx.createRadialGradient(tipX-r*0.15,tipY-r*0.15,0,tipX-r*0.1,tipY-r*0.1,r*0.25);
-        shine.addColorStop(0, "rgba(255,255,200,0.18)");
-        shine.addColorStop(1, "rgba(255,255,200,0)");
+        // Brillo especular en disco
+        const spec = ctx.createRadialGradient(tipX-r*0.13, tipY-r*0.13, 0, tipX-r*0.1, tipY-r*0.1, r*0.22);
+        spec.addColorStop(0, "rgba(255,200,100,0.25)");
+        spec.addColorStop(1, "rgba(255,200,100,0)");
         ctx.beginPath();
-        ctx.arc(tipX, tipY, r*0.38, 0, Math.PI*2);
-        ctx.fillStyle = shine;
+        ctx.arc(tipX, tipY, r*0.40, 0, Math.PI*2);
+        ctx.fillStyle = spec;
         ctx.fill();
 
-        const glow = ctx.createRadialGradient(tipX,tipY,r*0.3,tipX,tipY,r*1.5);
-        glow.addColorStop(0, "rgba(255,200,0,0.08)");
-        glow.addColorStop(1, "rgba(255,200,0,0)");
+        // Resplandor dorado alrededor de la flor
+        const glow = ctx.createRadialGradient(tipX, tipY, r*0.4, tipX, tipY, r*1.8);
+        glow.addColorStop(0, "rgba(255,190,0,0.10)");
+        glow.addColorStop(0.5,"rgba(255,190,0,0.04)");
+        glow.addColorStop(1,  "rgba(255,190,0,0)");
         ctx.beginPath();
-        ctx.arc(tipX, tipY, r*1.5, 0, Math.PI*2);
+        ctx.arc(tipX, tipY, r*1.8, 0, Math.PI*2);
         ctx.fillStyle = glow;
         ctx.fill();
       }
     }
 
-    // ─── LOOP ────────────────────────────────────────────────
+    // ── LOOP PRINCIPAL ─────────────────────────────────────
     function loop() {
       animId = requestAnimationFrame(loop);
       frame++;
@@ -377,16 +458,19 @@ export default function App() {
       drawSky();
       drawNebula();
 
+      // Estrellas parpadeantes
       stars.forEach(s => {
-        const twinkle = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(time * s.speed * 60 + s.phase));
-        const grd = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 2.5);
+        const twinkle = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(time * s.speed * 60 + s.phase));
+        // Halo suave
+        const grd = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 3);
         grd.addColorStop(0, s.color);
         grd.addColorStop(1, "transparent");
         ctx.beginPath();
-        ctx.arc(s.x, s.y, s.r * 2.5, 0, Math.PI * 2);
-        ctx.globalAlpha = twinkle * 0.4;
+        ctx.arc(s.x, s.y, s.r * 3, 0, Math.PI * 2);
+        ctx.globalAlpha = twinkle * 0.3;
         ctx.fillStyle = grd;
         ctx.fill();
+        // Punto central
         ctx.beginPath();
         ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
         ctx.globalAlpha = twinkle;
@@ -398,6 +482,8 @@ export default function App() {
       drawMoon();
       shootingStars.forEach(ss => { ss.update(); ss.draw(); });
       drawGround();
+
+      // Girasoles
       sunflowers.forEach(sf => {
         if (sf.delay > 0) { sf.delay--; return; }
         if (sf.progress < 1) sf.progress = Math.min(1, sf.progress + sf.growSpeed);
@@ -405,7 +491,7 @@ export default function App() {
       });
     }
 
-    // ─── RESIZE con debounce ─────────────────────────────────
+    // ── RESIZE con debounce ─────────────────────────────────
     let resizeTimer;
     function onResize() {
       clearTimeout(resizeTimer);
@@ -434,8 +520,7 @@ export default function App() {
       style={{
         display: "block",
         position: "fixed",
-        top: 0,
-        left: 0,
+        top: 0, left: 0,
         touchAction: "none",
       }}
     />
